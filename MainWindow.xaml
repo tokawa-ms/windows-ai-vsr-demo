@@ -44,8 +44,10 @@
                     MinWidth="120"
                     AutomationProperties.AutomationId="LanguageComboBox"
                     SelectionChanged="OnLanguageSelectionChanged">
-                    <ComboBoxItem Content="English" Tag="en"/>
-                    <ComboBoxItem Content="日本語" Tag="ja"/>
+                    <ComboBoxItem Content="English"
+                            Tag="en"/>
+                    <ComboBoxItem Content="日本語"
+                            Tag="ja"/>
                 </ComboBox>
             </StackPanel>
         </Grid>
