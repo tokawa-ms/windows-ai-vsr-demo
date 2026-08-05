@@ -1,0 +1,47 @@
+# .NET build outputs
+[Bb]in/
+[Oo]bj/
+[Aa]rtifacts/
+
+# Visual Studio and VS Code user state
+.vs/
+.vscode/
+*.user
+*.suo
+*.userosscache
+*.sln.docstates
+
+# NuGet and test outputs
+packages/
+TestResults/
+coverage/
+*.nupkg
+*.snupkg
+
+# MSIX packaging outputs
+AppPackages/
+BundleArtifacts/
+Package.StoreAssociation.xml
+*.appx
+*.appxbundle
+*.appxupload
+*.msix
+*.msixbundle
+*.msixupload
+
+# Signing keys and certificates
+*.pfx
+*.p12
+*.cer
+*.snk
+
+# Local logs, dumps, and temporary files
+*.log
+*.binlog
+*.dmp
+*.tmp
+*.bak
+*.orig
+
+# Local test media
+test-*.mp4

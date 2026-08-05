@@ -1,0 +1,4 @@
+<Solution>
+  <Project Path="VsrVideoEffect/VsrVideoEffect.csproj" />
+  <Project Path="WindowsAiVsrCpuDemo.csproj" />
+</Solution>
