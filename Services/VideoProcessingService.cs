@@ -9,6 +9,7 @@ using Windows.Media.Effects;
 using Windows.Media.MediaProperties;
 using Windows.Media.Transcoding;
 using Windows.Storage;
+using WindowsAiVsrCpuDemo.Infrastructure;
 
 namespace WindowsAiVsrCpuDemo.Services;
 
@@ -32,6 +33,9 @@ public sealed class VideoProcessingService
     private const int RecommendedClockMhz = 3000;
     private const int RecommendedL3CacheKb = 32 * 1024;
 
+    private static string L(string key, params object?[] arguments) =>
+        AppLocalizer.Get(key, arguments);
+
     public async Task<VsrAvailability> CheckAvailabilityAsync()
     {
         var catalog = ExecutionProviderCatalog.GetDefault();
@@ -45,21 +49,21 @@ public sealed class VideoProcessingService
             {
                 return new VsrAvailability(
                     false,
-                    $"VideoScaler を準備できませんでした: {readyResult.Status}");
+                    L("ScalerPreparationFailed", readyResult.Status));
             }
         }
         else if (readyState != AIFeatureReadyState.Ready)
         {
             return new VsrAvailability(
                 false,
-                $"このシステムでは VideoScaler を利用できません: {readyState}");
+                L("ScalerUnavailable", readyState));
         }
 
         using var scaler = await VideoScaler.CreateAsync();
         var cpu = await Task.Run(GetCpuAssessment);
         return new VsrAvailability(
             true,
-            $"VideoScaler は利用可能です。{cpu} Copilot+ PC では NPU、その他の対応 PC では CPU が自動選択されます。");
+            L("ScalerAvailable", cpu));
     }
 
     public async Task<VideoJobInfo> InspectVideoAsync(
@@ -71,7 +75,7 @@ public sealed class VideoProcessingService
 
         if (properties.Width == 0 || properties.Height == 0)
         {
-            throw new InvalidOperationException("動画の解像度を取得できませんでした。");
+            throw new InvalidOperationException(L("ResolutionUnavailable"));
         }
 
         var shortEdge = Math.Min(properties.Width, properties.Height);
@@ -79,7 +83,7 @@ public sealed class VideoProcessingService
         if (shortEdge < 240 || longEdge > 2560)
         {
             throw new NotSupportedException(
-                $"入力解像度 {properties.Width} × {properties.Height} は VSR の目安 (240p～1440p) 外です。");
+                L("ResolutionUnsupported", properties.Width, properties.Height));
         }
 
         var denominator = properties.FrameRate.Denominator == 0
@@ -93,7 +97,7 @@ public sealed class VideoProcessingService
         if (framesPerSecond is < 15 or > 60)
         {
             throw new NotSupportedException(
-                $"入力フレームレート {framesPerSecond:F2} fps は VSR の対応範囲 (15～60 fps) 外です。");
+                L("FrameRateUnsupported", framesPerSecond));
         }
 
         var (outputWidth, outputHeight, scaleFactor, normalizedScaleFactor) =
@@ -183,7 +187,7 @@ public sealed class VideoProcessingService
             if (failureReason != TranscodeFailureReason.None)
             {
                 throw new InvalidOperationException(
-                    $"MediaComposition の書き出しに失敗しました: {failureReason}");
+                    L("CompositionExportFailed", failureReason));
             }
         }
         catch
@@ -213,13 +217,13 @@ public sealed class VideoProcessingService
             if (result.Status != AIFeatureReadyResultState.Success)
             {
                 throw new InvalidOperationException(
-                    $"VideoScaler を準備できませんでした: {result.Status}");
+                    L("ScalerPreparationFailed", result.Status));
             }
         }
         else if (readyState != AIFeatureReadyState.Ready)
         {
             throw new NotSupportedException(
-                $"このシステムでは VideoScaler を利用できません: {readyState}");
+                L("ScalerUnavailable", readyState));
         }
 
         using var scaler = await VideoScaler.CreateAsync();
@@ -234,7 +238,7 @@ public sealed class VideoProcessingService
         {
             throw new ArgumentOutOfRangeException(
                 nameof(requestedScaleFactor),
-            "出力倍率は 1.25 倍から 4 倍の範囲で指定してください。");
+                L("ScaleOutOfRange"));
         }
 
         var isPortrait = inputHeight > inputWidth;
@@ -301,12 +305,20 @@ public sealed class VideoProcessingService
                 maximumClockMhz >= RecommendedClockMhz &&
                 maximumL3CacheKb >= RecommendedL3CacheKb;
             return meetsRecommendation
-                ? $"CPU は推奨仕様を満たします ({totalCores} コア、{maximumClockMhz} MHz、L3 {maximumL3CacheKb / 1024} MB)。"
-                : $"CPU は推奨仕様未満の可能性があります ({totalCores} コア、{maximumClockMhz} MHz、L3 {maximumL3CacheKb / 1024} MB)。処理速度が低下する場合があります。";
+                ? L(
+                    "CpuRecommended",
+                    totalCores,
+                    maximumClockMhz,
+                    maximumL3CacheKb / 1024)
+                : L(
+                    "CpuBelowRecommended",
+                    totalCores,
+                    maximumClockMhz,
+                    maximumL3CacheKb / 1024);
         }
         catch (Exception ex)
         {
-            return $"CPU 推奨仕様の確認を省略しました ({ex.Message})。";
+            return L("CpuCheckSkipped", ex.Message);
         }
     }
 }

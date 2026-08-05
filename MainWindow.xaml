@@ -17,17 +17,37 @@
             <Grid.ColumnDefinitions>
                 <ColumnDefinition Width="Auto"/>
                 <ColumnDefinition Width="*"/>
+                <ColumnDefinition Width="Auto"/>
             </Grid.ColumnDefinitions>
             <FontIcon
                 VerticalAlignment="Center"
                 FontSize="16"
                 Glyph="&#xE714;"/>
             <TextBlock
+                x:Name="AppTitleText"
                 Grid.Column="1"
                 Margin="12,0,0,0"
                 VerticalAlignment="Center"
                 Style="{StaticResource BodyStrongTextBlockStyle}"
-                Text="Windows AI Video Super Resolution デモ"/>
+                Text="Windows AI Video Super Resolution Demo"/>
+            <StackPanel
+                Grid.Column="2"
+                Orientation="Horizontal"
+                VerticalAlignment="Center"
+                Spacing="8">
+                <TextBlock
+                    x:Name="LanguageLabelText"
+                    VerticalAlignment="Center"
+                    Text="Language"/>
+                <ComboBox
+                    x:Name="LanguageComboBox"
+                    MinWidth="120"
+                    AutomationProperties.AutomationId="LanguageComboBox"
+                    SelectionChanged="OnLanguageSelectionChanged">
+                    <ComboBoxItem Content="English" Tag="en"/>
+                    <ComboBoxItem Content="日本語" Tag="ja"/>
+                </ComboBox>
+            </StackPanel>
         </Grid>
 
         <Grid
@@ -43,10 +63,12 @@
 
             <StackPanel Spacing="4">
                 <TextBlock
+                    x:Name="HeroTitleText"
                     Style="{StaticResource TitleTextBlockStyle}"
-                    Text="AI で動画を高解像度化"/>
+                    Text="Upscale video with AI"/>
                 <TextBlock
-                    Text="リアルタイム比較で効果を確認し、必要に応じて音声付き MP4 として保存できます。"
+                    x:Name="HeroDescriptionText"
+                    Text="Compare the results in real time and save an MP4 with audio when needed."
                     TextWrapping="Wrap"/>
             </StackPanel>
 
@@ -57,14 +79,15 @@
                 IsOpen="True"
                 Message="{x:Bind HardwareMessage, Mode=OneWay}"
                 Severity="{x:Bind HardwareSeverity, Mode=OneWay}"
-                Title="実行ハードウェア"/>
+                Title="Processing hardware"/>
 
             <TabView
                 Grid.Row="2"
                 IsAddTabButtonVisible="False"
                 TabWidthMode="SizeToContent">
                 <TabViewItem
-                    Header="リアルタイム VSR 比較"
+                    x:Name="RealtimeTab"
+                    Header="Real-time VSR comparison"
                     IsClosable="False">
                     <Grid Padding="4,16,4,4"
                           RowSpacing="14">
@@ -81,9 +104,10 @@
                                 <ColumnDefinition Width="Auto"/>
                             </Grid.ColumnDefinitions>
                             <Button
+                                x:Name="PickRealtimeInputVideoButton"
                                 AutomationProperties.AutomationId="PickRealtimeInputVideoButton"
                                 Command="{x:Bind PickInputCommand}"
-                                Content="比較する動画を選択"
+                                Content="Choose a video to compare"
                                 Style="{StaticResource AccentButtonStyle}"/>
                             <StackPanel
                                 Grid.Column="1"
@@ -113,13 +137,15 @@
                                     </StackPanel>
                                 </Button>
                                 <Button
+                                    x:Name="RestartRealtimeButton"
                                     AutomationProperties.AutomationId="RestartRealtimeButton"
                                     Command="{x:Bind RestartRealtimeCommand}"
-                                    Content="先頭から再生"/>
+                                    Content="Restart"/>
                                 <TextBlock
+                                    x:Name="ZoomLabelText"
                                     Margin="8,0,0,0"
                                     VerticalAlignment="Center"
-                                    Text="拡大率"/>
+                                    Text="Zoom"/>
                                 <Slider
                                     x:Name="RealtimeZoomSlider"
                                     Width="200"
@@ -131,9 +157,10 @@
                                     VerticalAlignment="Center"
                                     Text="{x:Bind RealtimeZoomText, Mode=OneWay}"/>
                                 <Button
+                                    x:Name="ResetRealtimeZoomButton"
                                     AutomationProperties.AutomationId="ResetRealtimeZoomButton"
                                     Command="{x:Bind ResetRealtimeZoomCommand}"
-                                    Content="リセット"/>
+                                    Content="Reset"/>
                             </StackPanel>
                         </Grid>
 
@@ -163,6 +190,7 @@
                                         </Image.RenderTransform>
                                     </Image>
                                     <Button
+                                        x:Name="OriginalRealtimeFocusButton"
                                         HorizontalAlignment="Stretch"
                                         VerticalAlignment="Stretch"
                                         AutomationProperties.AutomationId="OriginalRealtimeFocusButton"
@@ -185,8 +213,9 @@
                                         Background="{ThemeResource CardBackgroundFillColorDefaultBrush}"
                                         CornerRadius="{ThemeResource ControlCornerRadius}">
                                         <TextBlock
+                                            x:Name="OriginalLabelText"
                                             Style="{StaticResource BodyStrongTextBlockStyle}"
-                                            Text="原画"/>
+                                            Text="Original"/>
                                     </Border>
                                 </Grid>
                             </Border>
@@ -210,6 +239,7 @@
                                         </Image.RenderTransform>
                                     </Image>
                                     <Button
+                                        x:Name="VsrRealtimeFocusButton"
                                         HorizontalAlignment="Stretch"
                                         VerticalAlignment="Stretch"
                                         AutomationProperties.AutomationId="VsrRealtimeFocusButton"
@@ -232,9 +262,10 @@
                                         Background="{ThemeResource AccentFillColorDefaultBrush}"
                                         CornerRadius="{ThemeResource ControlCornerRadius}">
                                         <TextBlock
+                                            x:Name="VsrRealtimeLabelText"
                                             Foreground="{ThemeResource TextOnAccentFillColorPrimaryBrush}"
                                             Style="{StaticResource BodyStrongTextBlockStyle}"
-                                            Text="VSR リアルタイム"/>
+                                            Text="VSR real time"/>
                                     </Border>
                                 </Grid>
                             </Border>
@@ -259,17 +290,19 @@
                                     TextWrapping="Wrap"/>
                             </StackPanel>
                             <TextBlock
+                                x:Name="RealtimeFocusHelpText"
                                 Grid.Column="1"
                                 VerticalAlignment="Center"
                                 Foreground="{ThemeResource TextFillColorSecondaryBrush}"
-                                Text="映像内をクリックするとその画素を中心に拡大します。ドラッグすると注目点を移動できます。"
+                                Text="Click the video to zoom around that pixel. Drag to move the focus point."
                                 TextWrapping="Wrap"/>
                         </Grid>
                     </Grid>
                 </TabViewItem>
 
                 <TabViewItem
-                    Header="MP4 書き出し"
+                    x:Name="ExportTab"
+                    Header="Export MP4"
                     IsClosable="False">
                     <ScrollViewer>
                         <Grid
@@ -283,12 +316,14 @@
                             <StackPanel Spacing="20">
                                 <StackPanel Spacing="8">
                                     <TextBlock
+                                        x:Name="InputVideoStepText"
                                         Style="{StaticResource SubtitleTextBlockStyle}"
-                                        Text="1. 入力動画"/>
+                                        Text="1. Input video"/>
                                     <Button
+                                        x:Name="PickInputVideoButton"
                                         AutomationProperties.AutomationId="PickInputVideoButton"
                                         Command="{x:Bind PickInputCommand}"
-                                        Content="動画を選択"/>
+                                        Content="Choose video"/>
                                     <TextBlock
                                         Style="{StaticResource BodyStrongTextBlockStyle}"
                                         Text="{x:Bind InputFileName, Mode=OneWay}"
@@ -301,7 +336,7 @@
                                         x:Name="OutputScaleComboBox"
                                         Width="200"
                                         AutomationProperties.AutomationId="OutputScaleComboBox"
-                                        Header="出力倍率"
+                                        Header="Output scale"
                                         IsEnabled="{x:Bind CanSelectOutputScale, Mode=OneWay}"
                                         SelectedIndex="3"
                                         SelectionChanged="OnOutputScaleSelectionChanged">
@@ -338,13 +373,16 @@
 
                                 <StackPanel Spacing="8">
                                     <TextBlock
+                                        x:Name="OutputStepText"
                                         Style="{StaticResource SubtitleTextBlockStyle}"
-                                        Text="2. 出力先"/>
+                                        Text="2. Output"/>
                                     <Button
+                                        x:Name="PickOutputVideoButton"
                                         AutomationProperties.AutomationId="PickOutputVideoButton"
                                         Command="{x:Bind PickOutputCommand}"
-                                        Content="保存先を選択"/>
+                                        Content="Choose output location"/>
                                     <TextBlock
+                                        x:Name="ProcessingStepText"
                                         Style="{StaticResource BodyStrongTextBlockStyle}"
                                         Text="{x:Bind OutputFileName, Mode=OneWay}"
                                         TextWrapping="Wrap"/>
@@ -361,7 +399,7 @@
                                 <StackPanel Spacing="12">
                                     <TextBlock
                                         Style="{StaticResource SubtitleTextBlockStyle}"
-                                        Text="3. 処理"/>
+                                        Text="3. Process"/>
                                     <Grid ColumnSpacing="8">
                                         <Grid.ColumnDefinitions>
                                             <ColumnDefinition Width="*"/>
@@ -375,16 +413,20 @@
                                             <StackPanel Orientation="Horizontal"
                                                         Spacing="8">
                                                 <FontIcon Glyph="&#xE768;"/>
-                                                <TextBlock Text="VSR 処理を開始"/>
+                                                <TextBlock
+                                                    x:Name="StartProcessingText"
+                                                    Text="Start VSR processing"/>
                                             </StackPanel>
                                         </Button>
                                         <Button
+                                            x:Name="CancelProcessingButton"
                                             AutomationProperties.AutomationId="CancelProcessingButton"
                                             Grid.Column="1"
                                             Command="{x:Bind CancelCommand}"
-                                            Content="キャンセル"/>
+                                            Content="Cancel"/>
                                     </Grid>
                                     <ProgressBar
+                                        x:Name="ProcessingProgressBar"
                                         AutomationProperties.Name="動画処理の進行状況"
                                         Maximum="100"
                                         Value="{x:Bind ProgressValue, Mode=OneWay}"/>
@@ -393,9 +435,10 @@
                                         Text="{x:Bind StatusText, Mode=OneWay}"
                                         TextWrapping="Wrap"/>
                                     <Button
+                                        x:Name="OpenOutputFolderButton"
                                         AutomationProperties.AutomationId="OpenOutputFolderButton"
                                         Command="{x:Bind OpenOutputFolderCommand}"
-                                        Content="出力フォルダーを開く"
+                                        Content="Open output folder"
                                         HorizontalAlignment="Left"/>
                                 </StackPanel>
                             </StackPanel>
@@ -408,8 +451,9 @@
                                     <RowDefinition Height="*"/>
                                 </Grid.RowDefinitions>
                                 <TextBlock
+                                    x:Name="PreviewTitleText"
                                     Style="{StaticResource SubtitleTextBlockStyle}"
-                                    Text="入力 / 保存結果プレビュー"/>
+                                    Text="Input / saved result preview"/>
                                 <Border
                                     Grid.Row="1"
                                     MinHeight="480"
@@ -438,12 +482,14 @@
                     FontSize="14"
                     Glyph="&#xE946;"/>
                 <TextBlock
+                    x:Name="HardwareFooterText"
                     VerticalAlignment="Center"
-                    Text="Copilot+ PC では NPU、非 Copilot+ PC では CPU が自動使用されます。GPU は使用されません。"
+                    Text="Copilot+ PCs automatically use the NPU; other PCs use the CPU. The GPU is not used."
                     TextWrapping="Wrap"/>
                 <HyperlinkButton
+                    x:Name="VsrDocumentationLink"
                     AutomationProperties.AutomationId="OpenVsrDocumentationLink"
-                    Content="公式ドキュメント"
+                    Content="Official documentation"
                     NavigateUri="https://learn.microsoft.com/windows/ai/apis/video-super-resolution"/>
             </StackPanel>
         </Grid>

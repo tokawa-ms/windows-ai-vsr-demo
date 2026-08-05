@@ -1,6 +1,7 @@
 using Microsoft.UI;
 using Microsoft.UI.Windowing;
 using Microsoft.UI.Xaml;
+using Microsoft.UI.Xaml.Automation;
 using Microsoft.UI.Xaml.Controls;
 using Microsoft.UI.Xaml.Input;
 using Microsoft.UI.Xaml.Media;
@@ -45,6 +46,7 @@ public sealed partial class MainWindow : Window, INotifyPropertyChanged
     private bool _isRealtimeStarted;
     private bool _isRestartingRealtimeLoop;
     private bool _isSyncingOutputScaleSelection;
+    private bool _isSyncingLanguageSelection;
     private int _isRealtimeFrameProcessing;
     private int _realtimePreparationGeneration;
     private long _realtimeDroppedFrameCount;
@@ -56,16 +58,16 @@ public sealed partial class MainWindow : Window, INotifyPropertyChanged
     private double _realtimeDragStartFocusX;
     private double _realtimeDragStartFocusY;
     private double _requestedScaleFactor = 2;
-    private string _inputFileName = "未選択";
-    private string _inputDetails = "対応入力: 240p～1440p、15～60 fps";
-    private string _outputFileName = "未選択";
-    private string _outputDetails = "2 倍を目標に、最大 4K まで拡大します。";
-    private string _statusText = "動画を選択してください。";
-    private string _hardwareMessage = "VSR の利用可否を確認しています…";
-    private string _realtimePlayPauseLabel = "比較を再生";
+    private string _inputFileName = AppLocalizer.Get("NotSelected");
+    private string _inputDetails = AppLocalizer.Get("SupportedInput");
+    private string _outputFileName = AppLocalizer.Get("NotSelected");
+    private string _outputDetails = AppLocalizer.Get("OutputTarget", 2D);
+    private string _statusText = AppLocalizer.Get("ChooseVideoStatus");
+    private string _hardwareMessage = AppLocalizer.Get("CheckingAvailability");
+    private string _realtimePlayPauseLabel = AppLocalizer.Get("PlayComparison");
     private string _realtimeZoomText = "1.00x";
-    private string _realtimeStatusText = "動画を選択すると比較を準備します。";
-    private string _realtimeDiagnosticsText = "動画を選択すると VSR 推論状態を確認できます。";
+    private string _realtimeStatusText = AppLocalizer.Get("RealtimeChooseVideo");
+    private string _realtimeDiagnosticsText = AppLocalizer.Get("RealtimeDiagnosticsInitial");
     private SoftwareBitmapSource? _originalRealtimeFrameSource;
     private SoftwareBitmapSource? _vsrRealtimeFrameSource;
     private double _progressValue;
@@ -90,6 +92,13 @@ public sealed partial class MainWindow : Window, INotifyPropertyChanged
 
         InitializeComponent();
 
+        _isSyncingLanguageSelection = true;
+        LanguageComboBox.SelectedIndex = AppLocalizer.CurrentLanguage == AppLanguage.Japanese
+            ? 1
+            : 0;
+        _isSyncingLanguageSelection = false;
+        ApplyLocalization();
+
         RealtimeZoomSlider.Minimum = 1;
         RealtimeZoomSlider.Maximum = 4;
         RealtimeZoomSlider.StepFrequency = 0.25;
@@ -97,12 +106,136 @@ public sealed partial class MainWindow : Window, INotifyPropertyChanged
         ExtendsContentIntoTitleBar = true;
         SetTitleBar(AppTitleBar);
         SystemBackdrop = new MicaBackdrop();
-        Title = "Windows AI Video Super Resolution デモ";
         ResizeWindow(1500, 900);
 
         Activated += OnActivated;
         Closed += OnClosed;
         _realtimeLoopTimer.Tick += OnRealtimeLoopTimerTick;
+    }
+
+    private static string L(string key, params object?[] arguments) =>
+        AppLocalizer.Get(key, arguments);
+
+    private void OnLanguageSelectionChanged(
+        object sender,
+        SelectionChangedEventArgs args)
+    {
+        if (_isSyncingLanguageSelection ||
+            sender is not ComboBox { SelectedItem: ComboBoxItem selectedItem } ||
+            selectedItem.Tag is not string languageTag)
+        {
+            return;
+        }
+
+        AppLocalizer.SetLanguage(
+            languageTag == "ja" ? AppLanguage.Japanese : AppLanguage.English);
+        ApplyLocalization();
+        _ = InitializeVsrAsync();
+    }
+
+    private void ApplyLocalization()
+    {
+        Title = L("AppTitle");
+        AppTitleText.Text = L("AppTitle");
+        LanguageLabelText.Text = L("Language");
+        HeroTitleText.Text = L("HeroTitle");
+        HeroDescriptionText.Text = L("HeroDescription");
+        HardwareInfoBar.Title = L("HardwareTitle");
+        RealtimeTab.Header = L("RealtimeTab");
+        ExportTab.Header = L("ExportTab");
+        PickRealtimeInputVideoButton.Content = L("ChooseComparisonVideo");
+        RestartRealtimeButton.Content = L("Restart");
+        ZoomLabelText.Text = L("Zoom");
+        ResetRealtimeZoomButton.Content = L("Reset");
+        AutomationProperties.SetName(RealtimeZoomSlider, L("RealtimeZoomAutomation"));
+        AutomationProperties.SetName(OriginalRealtimeFocusButton, L("OriginalFocusAutomation"));
+        AutomationProperties.SetName(VsrRealtimeFocusButton, L("VsrFocusAutomation"));
+        OriginalLabelText.Text = L("Original");
+        VsrRealtimeLabelText.Text = L("RealtimeVsr");
+        RealtimeFocusHelpText.Text = L("FocusHelp");
+        InputVideoStepText.Text = L("InputVideoStep");
+        PickInputVideoButton.Content = L("ChooseVideo");
+        OutputScaleComboBox.Header = L("OutputScale");
+        for (var index = 0; index < OutputScaleComboBox.Items.Count; index++)
+        {
+            if (OutputScaleComboBox.Items[index] is ComboBoxItem { Tag: string scaleText } item &&
+                double.TryParse(scaleText, NumberStyles.Number, CultureInfo.InvariantCulture, out var scale))
+            {
+                item.Content = L("ScaleFormat", scale);
+            }
+        }
+
+        OutputStepText.Text = L("OutputStep");
+        PickOutputVideoButton.Content = L("ChooseOutput");
+        ProcessingStepText.Text = L("ProcessingStep");
+        StartProcessingText.Text = L("StartProcessing");
+        CancelProcessingButton.Content = L("Cancel");
+        AutomationProperties.SetName(ProcessingProgressBar, L("ProgressAutomation"));
+        OpenOutputFolderButton.Content = L("OpenOutputFolder");
+        PreviewTitleText.Text = L("PreviewTitle");
+        HardwareFooterText.Text = L("HardwareFooter");
+        VsrDocumentationLink.Content = L("OfficialDocumentation");
+
+        RefreshLocalizedState();
+    }
+
+    private void RefreshLocalizedState()
+    {
+        if (_inputFile is null)
+        {
+            InputFileName = L("NotSelected");
+            InputDetails = L("SupportedInput");
+            StatusText = L("ChooseVideoStatus");
+            RealtimeStatusText = L("RealtimeChooseVideo");
+            RealtimeDiagnosticsText = L("RealtimeDiagnosticsInitial");
+        }
+        else if (_videoJob is not null)
+        {
+            OutputDetails = L(
+                "OutputDetails",
+                _videoJob.OutputWidth,
+                _videoJob.OutputHeight,
+                _videoJob.ScaleFactor);
+            StatusText = IsBusy
+                ? L("ProcessingProgress", ProgressValue)
+                : _outputFile is null
+                    ? L("ChooseOutputThenStart")
+                    : L("ReadySelectedScale");
+        }
+
+        if (_outputFile is null)
+        {
+            OutputFileName = L("NotSelected");
+            if (_videoJob is null)
+            {
+                OutputDetails = L("OutputTarget", _requestedScaleFactor);
+            }
+        }
+
+        if (_isRealtimeReady && _realtimeTimeline is not null)
+        {
+            RealtimePlayPauseLabel = _realtimeTimeline.State == MediaTimelineControllerState.Running
+                ? L("Pause")
+                : L("PlayComparison");
+            RealtimeStatusText = _realtimeTimeline.State == MediaTimelineControllerState.Running
+                ? L("RealtimePlaying")
+                : L("Paused");
+            if (_realtimeFrameProcessor is { } processor)
+            {
+                RealtimeDiagnosticsText = L(
+                    "InferenceRunning",
+                    processor.InputWidth,
+                    processor.InputHeight,
+                    processor.OutputWidth,
+                    processor.OutputHeight,
+                    processor.SuccessfulFrameCount,
+                    Interlocked.Read(ref _realtimeDroppedFrameCount));
+            }
+        }
+        else
+        {
+            RealtimePlayPauseLabel = L("PlayComparison");
+        }
     }
 
     public event PropertyChangedEventHandler? PropertyChanged;
@@ -246,8 +379,11 @@ public sealed partial class MainWindow : Window, INotifyPropertyChanged
         catch (Exception ex)
         {
             HardwareSeverity = InfoBarSeverity.Error;
-            HardwareMessage =
-                $"VSR の初期化確認に失敗しました: {ex.GetType().Name}, HRESULT 0x{ex.HResult:X8}, {ex.Message}";
+            HardwareMessage = L(
+                "AvailabilityCheckFailed",
+                ex.GetType().Name,
+                ex.HResult,
+                ex.Message);
         }
     }
 
@@ -283,10 +419,13 @@ public sealed partial class MainWindow : Window, INotifyPropertyChanged
             InputFileName = file.Name;
             InputDetails =
                 $"{_videoJob.InputWidth} × {_videoJob.InputHeight} / {_videoJob.FramesPerSecond:F2} fps / {_videoJob.Duration:hh\\:mm\\:ss}";
-            OutputFileName = "未選択";
-            OutputDetails =
-                $"{_videoJob.OutputWidth} × {_videoJob.OutputHeight} / {_videoJob.ScaleFactor:F2} 倍 / MP4 (H.264 + AAC)";
-            StatusText = "保存先を選択してから VSR 処理を開始してください。";
+            OutputFileName = L("NotSelected");
+            OutputDetails = L(
+                "OutputDetails",
+                _videoJob.OutputWidth,
+                _videoJob.OutputHeight,
+                _videoJob.ScaleFactor);
+            StatusText = L("ChooseOutputThenStart");
             ProgressValue = 0;
             PreviewPlayer.Source = MediaSource.CreateFromStorageFile(file);
             await PrepareRealtimeComparisonAsync(file, _videoJob);
@@ -297,9 +436,9 @@ public sealed partial class MainWindow : Window, INotifyPropertyChanged
             PreviewPlayer.Source = null;
             _inputFile = null;
             _videoJob = null;
-            InputFileName = "読み込み失敗";
+            InputFileName = L("LoadFailed");
             InputDetails = ex.Message;
-            StatusText = "別の動画を選択してください。";
+            StatusText = L("ChooseAnotherVideo");
             NotifyCommandStates();
         }
     }
@@ -324,7 +463,7 @@ public sealed partial class MainWindow : Window, INotifyPropertyChanged
         _requestedScaleFactor = requestedScaleFactor;
         if (_videoJob is null || _inputFile is null)
         {
-            OutputDetails = $"{requestedScaleFactor:0.##} 倍を目標に、最大 4K まで拡大します。";
+            OutputDetails = L("OutputTarget", requestedScaleFactor);
             return;
         }
 
@@ -333,11 +472,14 @@ public sealed partial class MainWindow : Window, INotifyPropertyChanged
             _videoJob,
             requestedScaleFactor);
         SyncOutputScaleSelection(_videoJob.RequestedScaleFactor);
-        OutputDetails =
-            $"{_videoJob.OutputWidth} × {_videoJob.OutputHeight} / {_videoJob.ScaleFactor:F2} 倍 / MP4 (H.264 + AAC)";
+        OutputDetails = L(
+            "OutputDetails",
+            _videoJob.OutputWidth,
+            _videoJob.OutputHeight,
+            _videoJob.ScaleFactor);
         StatusText = _outputFile is null
-            ? "保存先を選択してから VSR 処理を開始してください。"
-            : "選択した倍率で VSR 処理を開始できます。";
+            ? L("ChooseOutputThenStart")
+            : L("ReadySelectedScale");
         await PrepareRealtimeComparisonAsync(_inputFile, _videoJob);
     }
 
@@ -368,7 +510,7 @@ public sealed partial class MainWindow : Window, INotifyPropertyChanged
             SuggestedStartLocation = PickerLocationId.VideosLibrary,
             SuggestedFileName = $"{Path.GetFileNameWithoutExtension(_inputFile.Name)}_vsr"
         };
-        picker.FileTypeChoices.Add("MP4 動画", [".mp4"]);
+        picker.FileTypeChoices.Add(L("Mp4Video"), [".mp4"]);
         InitializeWithWindow.Initialize(picker, WindowNative.GetWindowHandle(this));
 
         var file = await picker.PickSaveFileAsync();
@@ -379,7 +521,7 @@ public sealed partial class MainWindow : Window, INotifyPropertyChanged
 
         _outputFile = file;
         OutputFileName = file.Name;
-        StatusText = "VSR 処理を開始できます。";
+        StatusText = L("ReadyToProcess");
         NotifyCommandStates();
     }
 
@@ -402,14 +544,14 @@ public sealed partial class MainWindow : Window, INotifyPropertyChanged
         _processingCancellation = new CancellationTokenSource();
         IsBusy = true;
         ProgressValue = 0;
-        StatusText = "VSR セッションを確認しています…";
+        StatusText = L("CheckingSession");
 
         try
         {
             var progress = new Progress<double>(value =>
             {
                 ProgressValue = value;
-                StatusText = $"AI 超解像度処理中… {value:F0}%";
+                StatusText = L("ProcessingProgress", value);
             });
 
             await _videoProcessingService.RenderAsync(
@@ -425,7 +567,7 @@ public sealed partial class MainWindow : Window, INotifyPropertyChanged
             }
 
             ProgressValue = 100;
-            StatusText = $"完了: {_outputFile.Path}";
+            StatusText = L("Completed", _outputFile.Path);
             PreviewPlayer.Source = MediaSource.CreateFromStorageFile(_outputFile);
         }
         catch (OperationCanceledException)
@@ -435,7 +577,7 @@ public sealed partial class MainWindow : Window, INotifyPropertyChanged
                 return;
             }
 
-            StatusText = "処理をキャンセルしました。部分的な出力ファイルは削除されます。";
+            StatusText = L("ProcessingCanceled");
             ProgressValue = 0;
             ResetDeletedOutput();
         }
@@ -446,7 +588,7 @@ public sealed partial class MainWindow : Window, INotifyPropertyChanged
                 return;
             }
 
-            StatusText = $"処理に失敗しました: {ex.Message}";
+            StatusText = L("ProcessingFailed", ex.Message);
             ProgressValue = 0;
             ResetDeletedOutput();
         }
@@ -463,7 +605,7 @@ public sealed partial class MainWindow : Window, INotifyPropertyChanged
 
     private void CancelProcessing()
     {
-        StatusText = "キャンセルしています…";
+        StatusText = L("Canceling");
         _processingCancellation?.Cancel();
     }
 
@@ -472,7 +614,7 @@ public sealed partial class MainWindow : Window, INotifyPropertyChanged
         VideoJobInfo job)
     {
         var preparationGeneration = ++_realtimePreparationGeneration;
-        RealtimeStatusText = "リアルタイム比較を準備しています…";
+        RealtimeStatusText = L("PreparingRealtime");
 
         try
         {
@@ -527,15 +669,22 @@ public sealed partial class MainWindow : Window, INotifyPropertyChanged
             _realtimeFocusY = 0.5;
             RealtimeZoomSlider.Value = 1;
             ApplyRealtimeZoom();
-            RealtimePlayPauseLabel = "比較を再生";
+            RealtimePlayPauseLabel = L("PlayComparison");
             RealtimeZoomText = "1.00x";
-            RealtimeStatusText =
-                $"{job.InputWidth}×{job.InputHeight} → {previewWidth}×{previewHeight} をリアルタイム同期表示";
-            RealtimeDiagnosticsText =
-                $"推論待機中: 入力 NV12 {job.InputWidth}×{job.InputHeight} → " +
-                $"AI 出力 BGRA {previewWidth}×{previewHeight}" +
+            RealtimeStatusText = L(
+                "RealtimeReady",
+                job.InputWidth,
+                job.InputHeight,
+                previewWidth,
+                previewHeight);
+            RealtimeDiagnosticsText = L(
+                "InferenceWaiting",
+                job.InputWidth,
+                job.InputHeight,
+                previewWidth,
+                previewHeight) +
                 (previewWidth > 2560 || previewHeight > 1440
-                    ? "。1440p 超のリアルタイム処理ではフレーム落ちが増える場合があります。"
+                    ? L("HighResolutionWarning")
                     : string.Empty);
         }
         catch (Exception ex)
@@ -543,7 +692,7 @@ public sealed partial class MainWindow : Window, INotifyPropertyChanged
             ReleaseRealtimeComparison();
             if (!_isClosing)
             {
-                RealtimeStatusText = $"リアルタイム比較を準備できませんでした: {ex.Message}";
+                RealtimeStatusText = L("RealtimePrepareFailed", ex.Message);
             }
         }
     }
@@ -559,8 +708,8 @@ public sealed partial class MainWindow : Window, INotifyPropertyChanged
         {
             _realtimeTimeline.Pause();
             _realtimeLoopTimer.Stop();
-            RealtimePlayPauseLabel = "比較を再生";
-            RealtimeStatusText = "一時停止中";
+            RealtimePlayPauseLabel = L("PlayComparison");
+            RealtimeStatusText = L("Paused");
             return;
         }
 
@@ -575,8 +724,8 @@ public sealed partial class MainWindow : Window, INotifyPropertyChanged
         }
 
         _realtimeLoopTimer.Start();
-        RealtimePlayPauseLabel = "一時停止";
-        RealtimeStatusText = "原画と VSR をリアルタイム同期再生中";
+        RealtimePlayPauseLabel = L("Pause");
+        RealtimeStatusText = L("RealtimePlaying");
     }
 
     private void RestartRealtime()
@@ -598,8 +747,8 @@ public sealed partial class MainWindow : Window, INotifyPropertyChanged
         }
 
         _realtimeLoopTimer.Start();
-        RealtimePlayPauseLabel = "一時停止";
-        RealtimeStatusText = "先頭からリアルタイム同期再生中";
+        RealtimePlayPauseLabel = L("Pause");
+        RealtimeStatusText = L("RealtimeRestarted");
     }
 
     private void OnRealtimeVsrMediaEnded(MediaPlayer sender, object args)
@@ -646,10 +795,13 @@ public sealed partial class MainWindow : Window, INotifyPropertyChanged
                 _realtimeTimeline?.Pause();
                 _realtimeLoopTimer.Stop();
                 _isRealtimeReady = false;
-                RealtimePlayPauseLabel = "比較を再生";
-                RealtimeStatusText = "VSR リアルタイム処理を停止しました。";
-                RealtimeDiagnosticsText =
-                    $"VSR 推論エラー: {ex.GetType().Name}, HRESULT 0x{ex.HResult:X8}, {ex.Message}";
+                RealtimePlayPauseLabel = L("PlayComparison");
+                RealtimeStatusText = L("RealtimeStopped");
+                RealtimeDiagnosticsText = L(
+                    "InferenceError",
+                    ex.GetType().Name,
+                    ex.HResult,
+                    ex.Message);
                 NotifyCommandStates();
             });
         }
@@ -685,11 +837,14 @@ public sealed partial class MainWindow : Window, INotifyPropertyChanged
                     var successfulFrameCount = processor.SuccessfulFrameCount;
                     if (successfulFrameCount == 1 || successfulFrameCount % 30 == 0)
                     {
-                        RealtimeDiagnosticsText =
-                            $"VSR 推論実行中: 入力 {processor.InputWidth}×{processor.InputHeight} → " +
-                            $"AI 出力 {processor.OutputWidth}×{processor.OutputHeight}, " +
-                            $"成功 {successfulFrameCount} フレーム, " +
-                            $"処理待ちで省略 {Interlocked.Read(ref _realtimeDroppedFrameCount)} フレーム";
+                        RealtimeDiagnosticsText = L(
+                            "InferenceRunning",
+                            processor.InputWidth,
+                            processor.InputHeight,
+                            processor.OutputWidth,
+                            processor.OutputHeight,
+                            successfulFrameCount,
+                            Interlocked.Read(ref _realtimeDroppedFrameCount));
                     }
                 }
                 catch (Exception ex)
@@ -764,14 +919,14 @@ public sealed partial class MainWindow : Window, INotifyPropertyChanged
             timeline.Start();
             _isRealtimeStarted = true;
             _realtimeLoopTimer.Start();
-            RealtimePlayPauseLabel = "一時停止";
-            RealtimeStatusText = "原画と VSR を先頭から同期ループ再生中";
+            RealtimePlayPauseLabel = L("Pause");
+            RealtimeStatusText = L("RealtimeLooping");
         }
         catch (Exception ex)
         {
             if (!_isClosing)
             {
-                RealtimeStatusText = $"ループ再開に失敗しました: {ex.Message}";
+                RealtimeStatusText = L("LoopRestartFailed", ex.Message);
             }
         }
         finally
@@ -790,8 +945,7 @@ public sealed partial class MainWindow : Window, INotifyPropertyChanged
 
         if (_isRealtimeReady && _realtimeZoomFactor > 1)
         {
-            RealtimeStatusText =
-                $"{_realtimeZoomFactor:F2} 倍で拡大中。映像をクリックまたはドラッグして注目位置を変更できます。";
+            RealtimeStatusText = L("Zooming", _realtimeZoomFactor);
         }
     }
 
@@ -831,8 +985,7 @@ public sealed partial class MainWindow : Window, INotifyPropertyChanged
         _realtimeDragStartFocusX = _realtimeFocusX;
         _realtimeDragStartFocusY = _realtimeFocusY;
         viewport.CapturePointer(args.Pointer);
-        RealtimeStatusText =
-            $"選択した画素を中心に {_realtimeZoomFactor:F2} 倍で左右同時に拡大しています。";
+        RealtimeStatusText = L("PixelFocus", _realtimeZoomFactor);
         args.Handled = true;
     }
 
@@ -863,8 +1016,7 @@ public sealed partial class MainWindow : Window, INotifyPropertyChanged
             0,
             1);
         ApplyRealtimeZoom();
-        RealtimeStatusText =
-            $"ドラッグした注目点を中心に {_realtimeZoomFactor:F2} 倍で左右同時に拡大しています。";
+        RealtimeStatusText = L("DraggedFocus", _realtimeZoomFactor);
         args.Handled = true;
     }
 
@@ -920,7 +1072,7 @@ public sealed partial class MainWindow : Window, INotifyPropertyChanged
         _realtimeFocusY = 0.5;
         RealtimeZoomSlider.Value = 1;
         ApplyRealtimeZoom();
-        RealtimeStatusText = "拡大表示をリセットしました。";
+        RealtimeStatusText = L("ZoomReset");
     }
 
     private void ApplyRealtimeZoom()
@@ -1135,7 +1287,7 @@ public sealed partial class MainWindow : Window, INotifyPropertyChanged
         _realtimeFrameProcessor = null;
         OriginalRealtimeFrameSource = null;
         VsrRealtimeFrameSource = null;
-        RealtimeDiagnosticsText = "動画を選択すると VSR 推論状態を確認できます。";
+        RealtimeDiagnosticsText = L("RealtimeDiagnosticsInitial");
     }
 
     private static (uint Width, uint Height) CalculateRealtimePreviewSize(
@@ -1144,7 +1296,7 @@ public sealed partial class MainWindow : Window, INotifyPropertyChanged
         return (job.OutputWidth, job.OutputHeight);
     }
 
-    private static Task WaitForMediaOpenedAsync(MediaPlayer player)
+    private Task WaitForMediaOpenedAsync(MediaPlayer player)
     {
         var completion = new TaskCompletionSource(
             TaskCreationOptions.RunContinuationsAsynchronously);
@@ -1161,7 +1313,7 @@ public sealed partial class MainWindow : Window, INotifyPropertyChanged
             sender.MediaOpened -= OnOpened;
             sender.MediaFailed -= OnFailed;
             completion.TrySetException(new InvalidOperationException(
-                $"メディアを開けませんでした: {args.Error}, {args.ErrorMessage}"));
+                L("MediaOpenFailed", args.Error, args.ErrorMessage)));
         }
 
         player.MediaOpened += OnOpened;
@@ -1172,7 +1324,7 @@ public sealed partial class MainWindow : Window, INotifyPropertyChanged
     private void ResetDeletedOutput()
     {
         _outputFile = null;
-        OutputFileName = "再選択が必要";
+        OutputFileName = L("ReselectRequired");
         NotifyCommandStates();
     }
 
